@@ -1,0 +1,114 @@
+#!/bin/bash
+
+M_MACHINE=imx8mqevk
+
+#**************commands section**********************************************
+#install prerequisits
+setup()
+{
+ sudo apt-get install -y gawk wget git diffstat unzip texinfo gcc-multilib \
+ build-essential chrpath socat cpio python python3 python3-pip python3-pexpect \
+ xz-utils debianutils iputils-ping libsdl1.2-dev xterm libyaml-dev libssl-dev
+
+ sudo apt-get -y install autoconf libtool libglib2.0-dev libarchive-dev \
+ sed cvs subversion coreutils texi2html docbook-utils python-pysqlite2 \
+ help2man make gcc g++ desktop-file-utils libgl1-mesa-dev libglu1-mesa-dev \
+ mercurial automake groff curl lzop asciidoc u-boot-tools dos2unix mtd-utils pv \
+ libncurses5 libncurses5-dev libncursesw5-dev libelf-dev zlib1g-dev bc rename git-lfs libsdl2-dev
+
+ sudo apt-get install -y  python3-git
+
+ sudo apt install -y bmap-tools
+
+ sudo apt-get install -y bison g++-multilib git gperf libxml2-utils make python-networkx zip
+
+ sudo apt-get install -y flex curl libncurses5-dev libssl-dev zlib1g-dev gawk minicom
+
+ sudo apt-get install -y exfat-fuse exfat-utils device-tree-compiler liblz4-tool mtools xxhash zstd
+ 
+ mkdir ~/bin
+ curl http://commondatastorage.googleapis.com/git-repo-downloads/repo > ~/bin/repo
+ chmod a+x ~/bin/repo
+ export PATH=~/bin:$PATH
+}
+
+#define machine type
+machine_type()
+{
+        export MACHINE=$M_MACHINE
+	DISTRO=fsl-imx-wayland MACHINE=${MACHINE} source imx-setup-release.sh
+}
+
+sanity_fix()
+{
+	file="sources/poky/meta/conf/sanity.conf"
+	line='INHERIT += "sanity"'
+	modified_line='#INHERIT += "sanity"'
+
+	if grep -q "$line" "$file"; then
+		echo "The line '$line' exists in the file."
+		if grep -q "$modified_line" "$file"; then
+			echo "The line '$modified_line' already exists and is commented out."
+		else
+			sed -i "s/$line/$modified_line/g" "$file"
+			echo "The line '$line' has been modified to '$modified_line'."
+		fi
+	else
+		echo "The line '$line' does not exist in the file."
+	fi
+}
+
+sshd_fix()
+{
+	cp sources/meta-bsp-me9/tools/sshd_config sources/poky/meta/recipes-connectivity/openssh/openssh/sshd_config
+}
+
+add_new_layer() {
+	cp sources/meta-bsp-kratos/bblayers.confpre conf/bblayers.conf.org
+}
+
+#build image
+build_image()
+{
+	machine_type
+	sanity_fix
+	bitbake -k core-image-base
+}
+
+build_sdk()
+{
+	machine_type
+	bitbake  core-image-base -c populate_sdk
+}
+
+flash_image()
+{
+	pushd .
+	read -p "boot partition flash done, reboot device, enter device to fastboot, press enter to continue"
+	sudo ./me9_emmc_deploy.sh --mode all --imx-boot imx-boot --backup-part backup_part.wic --main-part main_part.wic
+	read -p "flash done, reboot device"
+	popd
+}
+
+
+help()
+{
+	echo $BASH_SOURCE "<parameter>"
+	echo "setup - install all needed prerequisits for build"
+	echo "build_image - build image"
+	echo "flash_image - flash image using uuu"
+	echo "build_sdk - build_sdk"
+}
+
+
+if [ -n "$*" ]; then
+	eval "$*" # execute arguments
+	#echo $* finished, ret=$?
+else
+	if [ "$0" != "$BASH_SOURCE" ]; then
+		echo $BASH_SOURCE functions are loaded into the shell environment
+	else
+		echo $BASH_SOURCE - a library of shell utility functions
+		echo To get help run \"$BASH_SOURCE _help\"
+	fi
+fi
