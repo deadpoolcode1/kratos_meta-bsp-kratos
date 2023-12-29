@@ -36,7 +36,7 @@ setup()
 machine_type()
 {
         export MACHINE=$M_MACHINE
-	DISTRO=fsl-imx-wayland MACHINE=${MACHINE} source imx-setup-release.sh
+	DISTRO=fsl-imx-wayland MACHINE=${MACHINE} source kratos-setup-release.sh
 }
 
 sanity_fix()
