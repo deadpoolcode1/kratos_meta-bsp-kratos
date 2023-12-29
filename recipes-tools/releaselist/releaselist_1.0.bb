@@ -2,7 +2,7 @@ DESCRIPTION = "Create a release list"
 SECTION = "tools"
 LICENSE = "CLOSED"
 DEPENDS += "virtual/kernel"
-DEPENDS += "notes serialsecure"
+DEPENDS += "notes"
 DEPENDS += "python3-native"
 
 TRACKED_RECIPES = "version notes"

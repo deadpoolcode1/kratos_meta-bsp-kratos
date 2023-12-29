@@ -3,7 +3,7 @@ SECTION = "net"
 LICENSE = "GPL-2.0"
 LIC_FILES_CHKSUM = "file://${S}/COPYING;md5=b234ee4d69f5fce4486a80fdaf4a4263"
 
-SRC_URI = "git://github.com/wkz/mdio-tools.git;protocol=https"
+SRC_URI = "https://github.com/deadpoolcode1/kratos_mdio-tools;protocol=https"
 SRCREV = "${AUTOREV}"
 
 S = "${WORKDIR}/git"
