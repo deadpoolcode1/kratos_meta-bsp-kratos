@@ -2,8 +2,9 @@ DESCRIPTION = "Release Managed Software"
 SECTION = "apps"
 LICENSE = "CLOSED"
 LIC_FILES_CHKSUM = "file://LICENSE;md5=8212b53396d3c0dbfab7ac8bac577c34"
+SRC_URI = "git://github.com/deadpoolcode1/kratos_version_managed.git;protocol=https"
+SRCREV = "f74eaf38dbda441df4fcaeb21ca4465957953a2f"
 
-SRC_URI = "https://github.com/deadpoolcode1/kratos_version_managed;protocol=https"
 SRCREV = "${AUTOREV}"
 
 S = "${WORKDIR}/git"
