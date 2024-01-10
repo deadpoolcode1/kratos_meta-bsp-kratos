@@ -1,6 +1,6 @@
 #!/bin/bash
 
-M_MACHINE=imx8mqevk
+M_MACHINE=imx8mpevk
 
 #**************commands section**********************************************
 #install prerequisits
@@ -110,6 +110,14 @@ flash_image()
 	popd
 }
 
+flash_to_emmc()
+{
+	pushd .
+	cp sources/meta-bsp-kratos/uuu build/tmp/deploy/images/imx8mpevk/
+	cd build/tmp/deploy/images/imx8mpevk/
+	sudo ./uuu -b emmc_all imx-boot core-image-base-imx8mpevk.wic.zst
+	popd
+}
 
 help()
 {
@@ -117,6 +125,7 @@ help()
 	echo "setup - install all needed prerequisits for build"
 	echo "build_image - build image"
 	echo "flash_image - flash image using uuu"
+	echo "flash_to_emmc - flash image to emmc"
 	echo "build_sdk - build_sdk"
 }
 
