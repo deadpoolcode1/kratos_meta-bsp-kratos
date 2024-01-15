@@ -101,15 +101,6 @@ build_sdk()
 	bitbake  core-image-base -c populate_sdk
 }
 
-flash_image()
-{
-	pushd .
-	read -p "boot partition flash done, reboot device, enter device to fastboot, press enter to continue"
-	sudo ./me9_emmc_deploy.sh --mode all --imx-boot imx-boot --backup-part backup_part.wic --main-part main_part.wic
-	read -p "flash done, reboot device"
-	popd
-}
-
 flash_to_emmc()
 {
 	pushd .
@@ -124,7 +115,6 @@ help()
 	echo $BASH_SOURCE "<parameter>"
 	echo "setup - install all needed prerequisits for build"
 	echo "build_image - build image"
-	echo "flash_image - flash image using uuu"
 	echo "flash_to_emmc - flash image to emmc"
 	echo "build_sdk - build_sdk"
 }
