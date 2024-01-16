@@ -104,7 +104,7 @@ build_sdk()
 flash_to_emmc()
 {
 	pushd .
-	cp sources/meta-bsp-kratos/uuu build/tmp/deploy/images/imx8mpevk/
+	cp sources/meta-bsp-kratos/uuu sources/meta-bsp-kratos/uuu build/tmp/deploy/images/imx8mpevk/
 	cd build/tmp/deploy/images/imx8mpevk/
 	sudo ./uuu -b emmc_all imx-boot core-image-base-imx8mpevk.wic.zst
 	popd
