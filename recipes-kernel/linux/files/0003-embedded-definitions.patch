@@ -1,0 +1,26 @@
+From 75d226d955f356e3d34d414f8ea68b22f8e36e10 Mon Sep 17 00:00:00 2001
+From: Ilan Ganor <ilan@kamacode.com>
+Date: Mon, 11 Mar 2024 06:01:45 +0200
+Subject: [PATCH] embedded definitions
+
+---
+ arch/arm64/configs/imx_v8_defconfig | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/arch/arm64/configs/imx_v8_defconfig b/arch/arm64/configs/imx_v8_defconfig
+index 2c743b546fe8..cf1489f450a2 100644
+--- a/arch/arm64/configs/imx_v8_defconfig
++++ b/arch/arm64/configs/imx_v8_defconfig
+@@ -1070,3 +1070,9 @@ CONFIG_ETHOSU=y
+ CONFIG_GPIOLIB=y
+ CONFIG_GPIO_SYSFS=y
+ CONFIG_KRATOS_STATION_PM=m
++CONFIG_EXPERT=y
++CONFIG_EMBEDDED=y
++CONFIG_ARCH_HAS_ZONE_DMA_SET=y
++CONFIG_ARCH_HAS_ZONE_DMA_SET=y
++CONFIG_ARCH_HAS_ZONE_DMA_SET=y
++CONFIG_ARCH_HAS_ZONE_DMA_SET=y
+-- 
+2.17.1
+

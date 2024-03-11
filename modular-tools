@@ -56,6 +56,7 @@ sanity_fix()
 	else
 		echo "The line '$line' does not exist in the file."
 	fi
+	cp sources/meta-bsp-kratos/recipes-kernel/linux/files/* sources/meta-imx/meta-bsp/recipes-kernel/linux/files/
 }
 
 sshd_fix()
@@ -95,6 +96,12 @@ build_image()
 	#fix_path
 }
 
+rebuild_image()
+{
+        machine_type
+        bitbake -k core-image-base
+}
+
 build_sdk()
 {
 	machine_type
@@ -115,6 +122,7 @@ help()
 	echo $BASH_SOURCE "<parameter>"
 	echo "setup - install all needed prerequisits for build"
 	echo "build_image - build image"
+	echo "rebuild_image" - run second time
 	echo "flash_to_emmc - flash image to emmc"
 	echo "build_sdk - build_sdk"
 }

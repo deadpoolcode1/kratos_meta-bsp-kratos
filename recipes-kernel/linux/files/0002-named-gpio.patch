@@ -1,0 +1,255 @@
+From 908d8a814b744c1bda7795defef1c816175c7fdc Mon Sep 17 00:00:00 2001
+From: Ilan Ganor <ilan@kamacode.com>
+Date: Mon, 11 Mar 2024 04:43:37 +0200
+Subject: [PATCH] added named gpio kernel module, manages gpio and power
+
+---
+ arch/arm64/boot/dts/freescale/gpio_named.h   |  13 ++
+ arch/arm64/boot/dts/freescale/imx8mp-evk.dts |   1 +
+ arch/arm64/configs/imx_v8_defconfig          |   3 +
+ drivers/misc/Kconfig                         |   7 +
+ drivers/misc/Makefile                        |   1 +
+ drivers/misc/kratos_station-pm.c             | 147 +++++++++++++++++++
+ include/dt-bindings/gpio/gpio.h              |   4 +
+ 7 files changed, 176 insertions(+)
+ create mode 100644 arch/arm64/boot/dts/freescale/gpio_named.h
+ create mode 100644 drivers/misc/kratos_station-pm.c
+
+diff --git a/arch/arm64/boot/dts/freescale/gpio_named.h b/arch/arm64/boot/dts/freescale/gpio_named.h
+new file mode 100644
+index 000000000000..1d25be6a306a
+--- /dev/null
++++ b/arch/arm64/boot/dts/freescale/gpio_named.h
+@@ -0,0 +1,13 @@
++/ {
++        kratos_station-pm {
++                compatible = "kratos,kratos_station-pm";
++                platform-unique;
++                status = "okay";
++                pin_numbers = <1>;
++                pin_names =     "TEST_PIN1";
++                //GPIOF_OUT_INIT_LOW  GPIOF_OUT_INIT_HIGH GPIOF_IN
++                pin_states = <GPIOF_OUT_INIT_LOW>;
++                pin_init_val = <1>;
++        };
++};
++
+diff --git a/arch/arm64/boot/dts/freescale/imx8mp-evk.dts b/arch/arm64/boot/dts/freescale/imx8mp-evk.dts
+index c451d4b2872b..e9eaa33e366b 100644
+--- a/arch/arm64/boot/dts/freescale/imx8mp-evk.dts
++++ b/arch/arm64/boot/dts/freescale/imx8mp-evk.dts
+@@ -7,6 +7,7 @@
+ 
+ #include <dt-bindings/usb/pd.h>
+ #include "imx8mp.dtsi"
++#include "gpio_named.h"
+ 
+ / {
+ 	model = "NXP i.MX8MPlus EVK board";
+diff --git a/arch/arm64/configs/imx_v8_defconfig b/arch/arm64/configs/imx_v8_defconfig
+index 97dc633d7800..2c743b546fe8 100644
+--- a/arch/arm64/configs/imx_v8_defconfig
++++ b/arch/arm64/configs/imx_v8_defconfig
+@@ -1067,3 +1067,6 @@ CONFIG_TRUSTED_KEYS_CAAM=y
+ 
+ CONFIG_SOC_IMX9=y
+ CONFIG_ETHOSU=y
++CONFIG_GPIOLIB=y
++CONFIG_GPIO_SYSFS=y
++CONFIG_KRATOS_STATION_PM=m
+diff --git a/drivers/misc/Kconfig b/drivers/misc/Kconfig
+index 0f5a49fc7c9e..d2c9caa5b7b1 100644
+--- a/drivers/misc/Kconfig
++++ b/drivers/misc/Kconfig
+@@ -470,6 +470,13 @@ config HISI_HIKEY_USB
+ 	  switching between the dual-role USB-C port and the USB-A host ports
+ 	  using only one USB controller.
+ 
++config KRATOS_STATION_PM
++        tristate "Kratos Station Power management driver"
++        depends on OF
++        default n
++        help
++          Implements Kratos Station custom behaviors controlling gpios and more
++
+ source "drivers/misc/c2port/Kconfig"
+ source "drivers/misc/eeprom/Kconfig"
+ source "drivers/misc/cb710/Kconfig"
+diff --git a/drivers/misc/Makefile b/drivers/misc/Makefile
+index a086197af544..14169e667672 100644
+--- a/drivers/misc/Makefile
++++ b/drivers/misc/Makefile
+@@ -59,3 +59,4 @@ obj-$(CONFIG_UACCE)		+= uacce/
+ obj-$(CONFIG_XILINX_SDFEC)	+= xilinx_sdfec.o
+ obj-$(CONFIG_HISI_HIKEY_USB)	+= hisi_hikey_usb.o
+ obj-$(CONFIG_HI6421V600_IRQ)	+= hi6421v600-irq.o
++obj-$(CONFIG_KRATOS_STATION_PM) += kratos_station-pm.o
+diff --git a/drivers/misc/kratos_station-pm.c b/drivers/misc/kratos_station-pm.c
+new file mode 100644
+index 000000000000..d71ae20e9c62
+--- /dev/null
++++ b/drivers/misc/kratos_station-pm.c
+@@ -0,0 +1,147 @@
++/*
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License version 2 as
++ * published by the Free Software Foundation.
++ */
++
++#include <linux/kallsyms.h>
++#include <linux/delay.h>
++#include <linux/err.h>
++#include <linux/init.h>
++#include <linux/kernel.h>
++#include <linux/module.h>
++#include <linux/of_gpio.h>
++#include <linux/platform_device.h>
++#include <linux/pm.h>
++#include <linux/regulator/consumer.h>
++#include <linux/reboot.h>
++
++struct kratos_station {
++	int	n0_general_som_to_pos_61;
++};
++
++
++struct regulator * v3v3_supply;
++
++
++static int poweroff_notifier(struct notifier_block *nb, unsigned long code, void *unused)
++{
++    if (code == SYS_RESTART) {
++        printk(KERN_INFO "%s: Powering off the device\n", THIS_MODULE->name);
++     }
++ 
++    return NOTIFY_DONE;
++ }
++
++
++static struct notifier_block poweroff_notifier_block = {
++    .notifier_call = poweroff_notifier,
++};
++
++static int kratos_station_request_export(struct device *dev, int flags)
++{
++	struct device_node *np = dev->of_node;
++	int ret;
++	u32 tmp;
++	u8 num_relays, i;
++	u32 pin_num, pin_init_val, pin_stat;
++	const char *oh_name;
++
++	if (!of_get_property(np, "pin_numbers", &tmp))
++		goto error_parse;
++	if (!of_get_property(np, "pin_names", &tmp))
++		goto error_parse;
++	if (!of_get_property(np, "pin_states", &tmp))
++		goto error_parse;
++	if (!of_get_property(np, "pin_init_val", &tmp))
++		goto error_parse;
++	num_relays = tmp / (sizeof(u32));
++	dev_info(dev, "num_relays %d\n", num_relays);
++	for (i = 0; i < num_relays; i++) {
++		if (of_property_read_u32_index(np, "pin_numbers", i, &pin_num))
++			goto error_parse;
++		if (of_property_read_u32_index(np, "pin_init_val", i, &pin_init_val))
++			goto error_parse;
++		if (of_property_read_u32_index(np, "pin_states", i, &pin_stat))
++			goto error_parse;
++		if (of_property_read_string_index(np, "pin_names", i, &oh_name))
++			goto error_parse;
++		ret = devm_gpio_request_one(dev, pin_num, pin_init_val, oh_name);
++		if (ret) {
++			dev_err(dev, "Failed to request GPIO %d, error %d\n",
++				pin_num, ret);
++			return ret;
++		}
++		gpio_export(pin_num, 1);
++		gpio_export_link(dev, oh_name, pin_num);
++	}
++	return 0;
++
++error_parse: 
++	dev_err(dev, "Failed to parse DT\n");
++	return -EINVAL;
++}
++
++static int kratos_station_probe(struct platform_device *pdev)
++{
++	struct kratos_station *priv;
++	int ret;
++
++	if (!pdev->dev.of_node) {
++		dev_err(&pdev->dev, "This driver support only DT init\n");
++		return -EINVAL;
++	}
++	priv = devm_kzalloc(&pdev->dev,
++			sizeof(struct kratos_station), GFP_KERNEL);
++	if (!priv) {
++		dev_err(&pdev->dev, "Failed to allocate memory\n");
++		return -ENOMEM;
++	}
++
++	platform_set_drvdata(pdev, priv);
++	ret = kratos_station_request_export(&pdev->dev, GPIOF_OUT_INIT_LOW);
++	dev_info(&pdev->dev, "Probed\n");
++	register_reboot_notifier(&poweroff_notifier_block);
++	
++	return 0;
++}
++
++static int kratos_station_remove(struct platform_device *pdev)
++{
++	unregister_reboot_notifier(&poweroff_notifier_block);
++	platform_set_drvdata(pdev, NULL);
++
++	return 0;
++}
++
++static const struct of_device_id kratos_station_match[] = {
++	{ .compatible = "kratos,kratos_station-pm", },
++	{ },
++};
++
++static struct platform_driver kratos_station_driver = {
++	.probe		= kratos_station_probe,
++	.remove		= kratos_station_remove,
++	.driver		= {
++		.name	= "kratos_station-pm",
++		.of_match_table = of_match_ptr(kratos_station_match),
++	},
++};
++
++static int __init kratos_station_init(void)
++{
++	return platform_driver_register(&kratos_station_driver);
++}
++
++static void __exit kratos_station_exit(void)
++{
++	unregister_reboot_notifier(&poweroff_notifier_block);
++	platform_driver_unregister(&kratos_station_driver);
++}
++
++module_init(kratos_station_init);
++module_exit(kratos_station_exit);
++
++MODULE_ALIAS("platform:kratos_station-pm");
++MODULE_DESCRIPTION("Kratos Station Board Driver");
++MODULE_LICENSE("GPL");
+diff --git a/include/dt-bindings/gpio/gpio.h b/include/dt-bindings/gpio/gpio.h
+index c029467e828b..33c6f923acfc 100644
+--- a/include/dt-bindings/gpio/gpio.h
++++ b/include/dt-bindings/gpio/gpio.h
+@@ -39,4 +39,8 @@
+ /* Bit 5 express pull down */
+ #define GPIO_PULL_DOWN 32
+ 
++#define GPIOF_IN 1
++#define GPIOF_OUT_INIT_LOW 0
++#define GPIOF_OUT_INIT_HIGH 2
++
+ #endif
+-- 
+2.17.1
+
