@@ -1,1 +1,1 @@
-echo "version: 1.0.7.0"
+echo "version: 1.0.8.0"

@@ -5,6 +5,10 @@ NORMAL=$(tput sgr0)
 # Print the headline in large font size
 echo "${BOLD}Release Notes${NORMAL}"
 
+echo "${BOLD}release 1.0.8.0${NORMAL}"
+echo "netsniff-ng added"
+echo "tcpdump added"
+
 echo "${BOLD}release 1.0.7.0${NORMAL}"
 echo "/sys/class/gpio support added"
 echo "named_gpio kernel module added"
