@@ -1,0 +1,11 @@
+[Unit]
+Description=Configure ethtool settings on eth0
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/sbin/ethtool -C eth0 rx-frames 1
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
