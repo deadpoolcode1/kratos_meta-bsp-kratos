@@ -4,7 +4,7 @@ After=network.target
 
 [Service]
 Type=oneshot
-ExecStart=/usr/sbin/ethtool -C eth0 rx-frames 1
+ExecStart=/bin/sh -c 'sleep 15 && /usr/sbin/ethtool -C eth0 rx-frames 1'
 RemainAfterExit=yes
 
 [Install]
