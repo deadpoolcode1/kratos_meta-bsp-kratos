@@ -117,6 +117,12 @@ flash_to_emmc()
 	popd
 }
 
+sync_project()
+{
+	repo forall -c 'git reset --hard HEAD; git clean -fdx'
+	repo sync -j4
+}
+
 help()
 {
 	echo $BASH_SOURCE "<parameter>"
@@ -125,6 +131,7 @@ help()
 	echo "rebuild_image" - run second time
 	echo "flash_to_emmc - flash image to emmc"
 	echo "build_sdk - build_sdk"
+	echo "sync_project - syncs project sources"
 }
 
 
