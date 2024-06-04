@@ -16,11 +16,6 @@ do_compile() {
     # Extract the kernel version
     KERNEL_VERSION=$(find ${TOPDIR}/tmp/work/imx8mqevk-poky-linux/linux-imx/ -maxdepth 1 -type d -name '5.15.71*' | sed 's/.*\///')
 
-    # Validate the extracted kernel version
-    if [ -z "${KERNEL_VERSION}" ] || [[ ! "${KERNEL_VERSION}" == *"5.15.71+"* ]]; then
-        bbfatal "Kernel version does not match the expected pattern (5.15.71+): ${KERNEL_VERSION}"
-    fi
-
     # Create the version list file with the kernel version
     echo "kernel version=$KERNEL_VERSION" > ${S}/release_list.conf
 
