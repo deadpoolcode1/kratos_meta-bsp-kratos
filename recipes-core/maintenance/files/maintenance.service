@@ -1,0 +1,9 @@
+[Unit]
+Description=Maintenance Service
+
+[Service]
+ExecStart=/usr/bin/maintenance.sh
+
+[Install]
+WantedBy=multi-user.target
+
