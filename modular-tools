@@ -3,9 +3,8 @@
 M_MACHINE=imx8mpevk
 QEMU_MACHINE=qemuarm64
 
-
 #**************commands section**********************************************
-#install prerequisits
+#install prerequisites
 setup()
 {
  sudo apt-get install -y gawk wget git diffstat unzip texinfo gcc-multilib \
@@ -27,9 +26,8 @@ setup()
  sudo apt-get install -y flex curl libncurses5-dev libssl-dev zlib1g-dev gawk minicom
 
  sudo apt-get install -y exfat-fuse exfat-utils device-tree-compiler liblz4-tool mtools xxhash zstd
- 
+
  sudo apt-get install -y qemu-system
- 
  mkdir ~/bin
  curl http://commondatastorage.googleapis.com/git-repo-downloads/repo > ~/bin/repo
  chmod a+x ~/bin/repo
@@ -43,6 +41,7 @@ machine_type()
 	DISTRO=fsl-imx-wayland MACHINE=${MACHINE} source kratos-setup-release.sh
 }
 
+#define qemu type
 qemu_type()
 {
         export MACHINE=$QEMU_MACHINE
@@ -97,7 +96,7 @@ add_new_layer() {
 	cp sources/meta-bsp-kratos/bblayers.confpre conf/bblayers.conf.org
 }
 
-#build image
+#build image for machine
 build_image()
 {
 	machine_type
@@ -106,6 +105,7 @@ build_image()
 	#fix_path
 }
 
+#build image for QEMU
 build_image_qemu()
 {
 	qemu_type
@@ -135,6 +135,15 @@ flash_to_emmc()
 	popd
 }
 
+update_meta_bsp_kratos()
+{
+    pushd sources/meta-bsp-kratos/
+    git fetch origin
+    git checkout master
+    git pull origin master
+    popd
+}
+
 sync_project()
 {
 	repo forall -c 'git reset --hard HEAD; git clean -fdx'
@@ -144,13 +153,14 @@ sync_project()
 help()
 {
 	echo $BASH_SOURCE "<parameter>"
-	echo "setup - install all needed prerequisits for build"
-	echo "build_image - build image"
+	echo "setup - install all needed prerequisites for build"
+	echo "build_image - build image for machine"
 	echo "build_image_qemu - build image for QEMU"
-	echo "rebuild_image" - run second time
+	echo "rebuild_image - rebuild image for machine"
 	echo "flash_to_emmc - flash image to emmc"
-	echo "build_sdk - build_sdk"
+	echo "build_sdk - build SDK"
 	echo "sync_project - syncs project sources"
+	echo "update_meta_bsp_kratos - update meta-bsp-kratos from Git repository"
 }
 
 
@@ -165,3 +175,4 @@ else
 		echo To get help run \"$BASH_SOURCE _help\"
 	fi
 fi
+
