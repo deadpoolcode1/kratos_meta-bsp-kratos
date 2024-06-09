@@ -1,6 +1,8 @@
 #!/bin/bash
 
 M_MACHINE=imx8mpevk
+QEMU_MACHINE=qemuarm64
+
 
 #**************commands section**********************************************
 #install prerequisits
@@ -26,6 +28,8 @@ setup()
 
  sudo apt-get install -y exfat-fuse exfat-utils device-tree-compiler liblz4-tool mtools xxhash zstd
  
+ sudo apt-get install -y qemu-system
+ 
  mkdir ~/bin
  curl http://commondatastorage.googleapis.com/git-repo-downloads/repo > ~/bin/repo
  chmod a+x ~/bin/repo
@@ -36,6 +40,12 @@ setup()
 machine_type()
 {
         export MACHINE=$M_MACHINE
+	DISTRO=fsl-imx-wayland MACHINE=${MACHINE} source kratos-setup-release.sh
+}
+
+qemu_type()
+{
+        export MACHINE=$QEMU_MACHINE
 	DISTRO=fsl-imx-wayland MACHINE=${MACHINE} source kratos-setup-release.sh
 }
 
@@ -96,6 +106,14 @@ build_image()
 	#fix_path
 }
 
+build_image_qemu()
+{
+	qemu_type
+	sanity_fix
+	bitbake -k core-image-base
+	#fix_path
+}
+
 rebuild_image()
 {
         machine_type
@@ -128,6 +146,7 @@ help()
 	echo $BASH_SOURCE "<parameter>"
 	echo "setup - install all needed prerequisits for build"
 	echo "build_image - build image"
+	echo "build_image_qemu - build image for QEMU"
 	echo "rebuild_image" - run second time
 	echo "flash_to_emmc - flash image to emmc"
 	echo "build_sdk - build_sdk"
