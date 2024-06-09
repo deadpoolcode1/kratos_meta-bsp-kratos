@@ -137,11 +137,9 @@ flash_to_emmc()
 
 update_meta_bsp_kratos()
 {
-    pushd sources/meta-bsp-kratos/
-    git remote set-url origin git@github.com:deadpoolcode1/kratos_meta-bsp-kratos.git
-    git fetch origin
-    git checkout master
-    git pull origin master
+    pushd .
+    cd  sources/meta-bsp-kratos/
+    git pull git@github.com:deadpoolcode1/kratos_meta-bsp-kratos.git master
     popd
 }
 
