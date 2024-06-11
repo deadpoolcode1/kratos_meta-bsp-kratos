@@ -1,0 +1,12 @@
+[Unit]
+Description=Start or Stop Network Bridge
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/bridgeactivation.sh start
+ExecStop=/usr/bin/bridgeactivation.sh stop
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
