@@ -1,0 +1,45 @@
+From 8f7aba61cf1260207c2e716099604336551fc773 Mon Sep 17 00:00:00 2001
+From: deadpoolcode1 <deadpoolcode@gmail.com>
+Date: Tue, 11 Jun 2024 08:30:50 +0300
+Subject: [PATCH] changed UART pins for UART0
+
+---
+ arch/arm64/boot/dts/freescale/imx8mp-evk.dts | 8 ++------
+ 1 file changed, 2 insertions(+), 6 deletions(-)
+
+diff --git a/arch/arm64/boot/dts/freescale/imx8mp-evk.dts b/arch/arm64/boot/dts/freescale/imx8mp-evk.dts
+index bf07d83a0230..cff83dbe1d8d 100644
+--- a/arch/arm64/boot/dts/freescale/imx8mp-evk.dts
++++ b/arch/arm64/boot/dts/freescale/imx8mp-evk.dts
+@@ -814,7 +814,6 @@
+ 	pinctrl-0 = <&pinctrl_uart1>;
+ 	assigned-clocks = <&clk IMX8MP_CLK_UART1>;
+ 	assigned-clock-parents = <&clk IMX8MP_SYS_PLL1_80M>;
+-	fsl,uart-has-rtscts;
+ 	status = "okay";
+ };
+ 
+@@ -1119,7 +1118,6 @@
+ 	pinctrl_sai3: sai3grp {
+ 		fsl,pins = <
+ 			MX8MP_IOMUXC_SAI3_TXFS__AUDIOMIX_SAI3_TX_SYNC	0xd6
+-			MX8MP_IOMUXC_SAI3_TXC__AUDIOMIX_SAI3_TX_BCLK	0xd6
+ 			MX8MP_IOMUXC_SAI3_RXD__AUDIOMIX_SAI3_RX_DATA00	0xd6
+ 			MX8MP_IOMUXC_SAI3_TXD__AUDIOMIX_SAI3_TX_DATA00	0xd6
+ 			MX8MP_IOMUXC_SAI3_MCLK__AUDIOMIX_SAI3_MCLK	0xd6
+@@ -1136,10 +1134,8 @@
+ 
+ 	pinctrl_uart1: uart1grp {
+ 		fsl,pins = <
+-			MX8MP_IOMUXC_UART1_RXD__UART1_DCE_RX	0x140
+-			MX8MP_IOMUXC_UART1_TXD__UART1_DCE_TX	0x140
+-			MX8MP_IOMUXC_UART3_RXD__UART1_DCE_CTS	0x140
+-			MX8MP_IOMUXC_UART3_TXD__UART1_DCE_RTS	0x140
++			MX8MP_IOMUXC_SAI3_TXFS__UART2_DCE_RX	0x140
++			MX8MP_IOMUXC_SAI3_TXC__UART2_DCE_TX	0x140
+ 		>;
+ 	};
+ 
+-- 
+2.17.1
+
