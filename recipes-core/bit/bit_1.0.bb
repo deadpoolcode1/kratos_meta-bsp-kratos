@@ -1,22 +1,18 @@
-DESCRIPTION = "bit application"
+DESCRIPTION = "Bit Service"
 LICENSE = "CLOSED"
 LIC_FILES_CHKSUM = "file://${COREBASE}/meta/files/common-licenses/Apache-2.0;md5=6f2e58f9db926d1d557f69da36ac4b7c"
 
-SRC_URI = "file://TestClient_evb \
-           file://TestServer_evb"
+SRC_URI = "file://bit.service"
 
 S = "${WORKDIR}"
 
-do_compile() {
-    # No compilation needed since we are using precompiled binaries
-    :
-}
+inherit systemd
+
+SYSTEMD_SERVICE:${PN} = "bit.service"
 
 do_install() {
-    install -d ${D}${bindir}
-    install -m 0755 ${WORKDIR}/TestClient_evb ${D}${bindir}/TestClient_evb
-    install -m 0755 ${WORKDIR}/TestServer_evb ${D}${bindir}/TestServer_evb
+    install -d ${D}${systemd_system_unitdir}
+    install -m 0644 ${WORKDIR}/bit.service ${D}${systemd_system_unitdir}/
 }
 
-FILES_${PN} = "${bindir}/TestClient_evb ${bindir}/TestServer_evb"
-
+FILES:${PN} += "${systemd_system_unitdir}/bit.service"

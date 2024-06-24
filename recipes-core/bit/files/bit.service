@@ -1,9 +1,8 @@
 [Unit]
-Description=Bit Service
+Description=BIT Service
 
 [Service]
 ExecStart=/etc/TestServer_evb
 
 [Install]
 WantedBy=multi-user.target
-

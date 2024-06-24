@@ -78,7 +78,7 @@ fix_path()
 
 # Define the path to the original bblayers.conf file
 BBLAYERS_CONF_ORG="build/conf/bblayers.conf.org"
-BBLAYERS_CONF_ORG="build/conf/bblayers.conf"
+BBLAYERS_CONF="build/conf/bblayers.conf"
 # Check if the original bblayers.conf file exists
 if [ ! -f "$BBLAYERS_CONF_ORG" ]; then
     echo "Error: bblayers.conf.org not found at $BBLAYERS_CONF_ORG"
@@ -122,7 +122,7 @@ rebuild_image()
 build_sdk()
 {
 	machine_type
-	bitbake  core-image-base -c populate_sdk
+	bitbake core-image-base -c populate_sdk
 }
 
 flash_to_emmc()
