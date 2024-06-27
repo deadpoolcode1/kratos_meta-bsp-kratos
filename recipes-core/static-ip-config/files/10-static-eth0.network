@@ -4,3 +4,5 @@ Name=eth0
 [Network]
 Address=10.0.1.4/24
 Gateway=10.0.1.1
+IgnoreCarrierLoss=yes
+

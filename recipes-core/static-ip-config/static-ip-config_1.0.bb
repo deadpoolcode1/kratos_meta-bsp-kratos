@@ -1,12 +1,21 @@
-DESCRIPTION = "Static IP configuration for eth0 and eth1"
+SUMMARY = "Static IP configuration for eth0"
+DESCRIPTION = "Configure eth0 with a static IP address and IgnoreCarrierLoss"
 LICENSE = "CLOSED"
+PR = "r0"
 
-SRC_URI = "file://10-eth0.network \
-           file://20-eth1.network"
+SRC_URI = "file://10-static-eth0.network \
+	   file://10-static-eth1.network"
+
+S = "${WORKDIR}"
 
 do_install() {
-    install -d ${D}${sysconfdir}/systemd/network/
-    install -m 0644 ${WORKDIR}/10-eth0.network ${D}${sysconfdir}/systemd/network/10-eth0.network
-    install -m 0644 ${WORKDIR}/20-eth1.network ${D}${sysconfdir}/systemd/network/20-eth1.network
+    install -d ${D}${sysconfdir}/systemd/network
+    install -m 0644 ${WORKDIR}/10-static-eth0.network ${D}${sysconfdir}/systemd/network/
+    
+    install -d ${D}${sysconfdir}/systemd/network
+    install -m 0644 ${WORKDIR}/10-static-eth1.network ${D}${sysconfdir}/systemd/network/
 }
+
+FILES_${PN} += "${sysconfdir}/systemd/network/10-static-eth0.network"
+FILES_${PN} += "${sysconfdir}/systemd/network/10-static-eth1.network"
 

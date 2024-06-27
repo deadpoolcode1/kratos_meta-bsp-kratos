@@ -2,7 +2,7 @@ DESCRIPTION = "Maintenance service"
 LICENSE = "CLOSED"
 LIC_FILES_CHKSUM = "file://${COREBASE}/meta/files/common-licenses/Apache-2.0;md5=6f2e58f9db926d1d557f69da36ac4b7c"
 
-SRC_URI = "file://maintenance.c \
+SRC_URI = "file://maintenance\
            file://maintenance.service \
            file://maintenance.sh"
 
@@ -12,13 +12,12 @@ inherit systemd
 
 SYSTEMD_SERVICE:${PN} = "maintenance.service"
 
-do_compile() {
-    ${CC} ${CFLAGS} ${LDFLAGS} -o maintenance maintenance.c
-}
+RDEPENDS:${PN} = "jsoncpp"
+
 
 do_install() {
     install -d ${D}${bindir}
-    install -m 0755 maintenance ${D}${bindir}
+    install -m 0755 ${WORKDIR}/maintenance ${D}${bindir}/maintenance
 
     install -d ${D}${bindir}
     install -m 0755 maintenance.sh ${D}${bindir}/maintenance.sh
