@@ -1,8 +1,8 @@
 [Match]
-Name=eth0
+Name=eth2
 
 [Network]
-Address=10.0.2.4/24
+Address=10.0.1.6/24
 Gateway=10.0.1.1
 IgnoreCarrierLoss=yes
 

@@ -2,7 +2,7 @@
 Name=eth1
 
 [Network]
-Address=10.0.1.5/24
+Address=10.0.2.5/24
 Gateway=10.0.1.1
 IgnoreCarrierLoss=yes
 

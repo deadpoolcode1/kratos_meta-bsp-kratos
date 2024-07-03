@@ -9,6 +9,7 @@ SRC_URI += "file://0001-removed-promisc-check-on-eth1.patch \
             file://0006-changed-UART-pins-for-UART0.patch \
             file://0007-add-uart-4.patch \
             file://0008-Load-FPGA-gpio-config.patch \
+            file://0009-gpio-interrupt-kernel-dts-update.patch \
             file://defconfig.cfg"
 
 do_configure:append() {

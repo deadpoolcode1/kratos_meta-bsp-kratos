@@ -1,0 +1,185 @@
+From 86dd22d736177a070d4dd6d21545637c53527ca8 Mon Sep 17 00:00:00 2001
+From: Orel Eliyahu <EliyahuOrelM@gmail.com>
+Date: Tue, 2 Jul 2024 07:03:45 -0700
+Subject: [PATCH] gpio interrupt kernel&dts update
+
+---
+ arch/arm64/boot/dts/freescale/gpio_named.h   |  8 ++-
+ arch/arm64/boot/dts/freescale/imx8mp-evk.dts |  4 ++
+ drivers/misc/kratos_station-pm.c             | 70 +++++++++++++++-----
+ 3 files changed, 64 insertions(+), 18 deletions(-)
+
+diff --git a/arch/arm64/boot/dts/freescale/gpio_named.h b/arch/arm64/boot/dts/freescale/gpio_named.h
+index b75821334c5a..7f178fe5a6f2 100644
+--- a/arch/arm64/boot/dts/freescale/gpio_named.h
++++ b/arch/arm64/boot/dts/freescale/gpio_named.h
+@@ -5,8 +5,10 @@
+         status = "okay";
+         pin_numbers = <87 86 85>;
+         pin_names = "PROG", "DONE", "INIT";
+-        // GPIOF_OUT_INIT_LOW  GPIOF_OUT_INIT_HIGH GPIOF_IN
+-        pin_states = <GPIOF_IN GPIOF_OUT_INIT_LOW GPIOF_OUT_INIT_LOW>;
+-        pin_init_val = <0 1 1>;  
++        pin_states = < GPIOF_IN GPIOF_OUT_INIT_LOW GPIOF_OUT_INIT_LOW>;
++        pin_init_val = < 0 1 1>;  
++        
++        interrupt-gpios = <&gpio3 24 IRQ_TYPE_EDGE_RISING>;
++       
+     };
+ };
+diff --git a/arch/arm64/boot/dts/freescale/imx8mp-evk.dts b/arch/arm64/boot/dts/freescale/imx8mp-evk.dts
+index 8603a9fe698d..7bbf29e0a13e 100644
+--- a/arch/arm64/boot/dts/freescale/imx8mp-evk.dts
++++ b/arch/arm64/boot/dts/freescale/imx8mp-evk.dts
+@@ -192,8 +192,11 @@ usb3_data_ss: endpoint {
+ 			};
+ 		};
+ 	};
++	
+ };
+ 
++
++
+ &flexspi {
+ 	pinctrl-names = "default";
+ 	pinctrl-0 = <&pinctrl_flexspi0>;
+@@ -932,6 +935,7 @@ MX8MP_IOMUXC_HDMI_CEC__HDMIMIX_HDMI_CEC		0x40000010
+ 			MX8MP_IOMUXC_SAI5_RXD0__GPIO3_IO21         0x00000106
+                 	MX8MP_IOMUXC_SAI5_RXD1__GPIO3_IO22         0x00000106
+                 	MX8MP_IOMUXC_SAI5_RXD2__GPIO3_IO23         0x00000106
++                	MX8MP_IOMUXC_SAI5_RXD3__GPIO3_IO24         0x00000106
+ 			/*
+ 			 * M.2 pin20 & pin21 need to be set to 11 for 88W9098 to select the
+ 			 * default Reference Clock Frequency
+diff --git a/drivers/misc/kratos_station-pm.c b/drivers/misc/kratos_station-pm.c
+index d71ae20e9c62..f95dcc194479 100644
+--- a/drivers/misc/kratos_station-pm.c
++++ b/drivers/misc/kratos_station-pm.c
+@@ -15,29 +15,36 @@
+ #include <linux/pm.h>
+ #include <linux/regulator/consumer.h>
+ #include <linux/reboot.h>
++#include <linux/interrupt.h>
++#include <linux/gpio.h>
+ 
+ struct kratos_station {
+-	int	n0_general_som_to_pos_61;
++	int n0_general_som_to_pos_61;
++	int irq;
+ };
+ 
+-
+-struct regulator * v3v3_supply;
+-
++struct regulator *v3v3_supply;
+ 
+ static int poweroff_notifier(struct notifier_block *nb, unsigned long code, void *unused)
+ {
+-    if (code == SYS_RESTART) {
+-        printk(KERN_INFO "%s: Powering off the device\n", THIS_MODULE->name);
+-     }
+- 
+-    return NOTIFY_DONE;
+- }
++	if (code == SYS_RESTART) {
++		printk(KERN_INFO "%s: Powering off the device\n", THIS_MODULE->name);
++	}
+ 
++	return NOTIFY_DONE;
++}
+ 
+ static struct notifier_block poweroff_notifier_block = {
+-    .notifier_call = poweroff_notifier,
++	.notifier_call = poweroff_notifier,
+ };
+ 
++static irqreturn_t kratos_gpio_isr(int irq, void *dev_id)
++{
++	struct kratos_station *kratos = dev_id;
++	pr_info("GPIO interrupt occurred\n");
++	return IRQ_HANDLED;
++}
++
+ static int kratos_station_request_export(struct device *dev, int flags)
+ {
+ 	struct device_node *np = dev->of_node;
+@@ -70,6 +77,8 @@ static int kratos_station_request_export(struct device *dev, int flags)
+ 		if (ret) {
+ 			dev_err(dev, "Failed to request GPIO %d, error %d\n",
+ 				pin_num, ret);
++			if (ret == -EBUSY)
++				dev_err(dev, "GPIO %d is already in use.\n", pin_num);
+ 			return ret;
+ 		}
+ 		gpio_export(pin_num, 1);
+@@ -77,7 +86,7 @@ static int kratos_station_request_export(struct device *dev, int flags)
+ 	}
+ 	return 0;
+ 
+-error_parse: 
++error_parse:
+ 	dev_err(dev, "Failed to parse DT\n");
+ 	return -EINVAL;
+ }
+@@ -86,23 +95,53 @@ static int kratos_station_probe(struct platform_device *pdev)
+ {
+ 	struct kratos_station *priv;
+ 	int ret;
++	u32 gpio_num;
+ 
+ 	if (!pdev->dev.of_node) {
+-		dev_err(&pdev->dev, "This driver support only DT init\n");
++		dev_err(&pdev->dev, "This driver supports only DT init\n");
+ 		return -EINVAL;
+ 	}
+ 	priv = devm_kzalloc(&pdev->dev,
+-			sizeof(struct kratos_station), GFP_KERNEL);
++			    sizeof(struct kratos_station), GFP_KERNEL);
+ 	if (!priv) {
+ 		dev_err(&pdev->dev, "Failed to allocate memory\n");
+ 		return -ENOMEM;
+ 	}
+ 
+ 	platform_set_drvdata(pdev, priv);
++
+ 	ret = kratos_station_request_export(&pdev->dev, GPIOF_OUT_INIT_LOW);
++	if (ret)
++		return ret;
++
++	/* Check if interrupt-gpios is defined in DT */
++	gpio_num = of_get_named_gpio(pdev->dev.of_node, "interrupt-gpios", 0);
++	if (gpio_num >= 0 && gpio_is_valid(gpio_num)) {
++		ret = devm_gpio_request_one(&pdev->dev, gpio_num, GPIOF_IN, "IRQ ARM#3");
++		if (ret) {
++			dev_err(&pdev->dev, "Failed to request GPIO %d, error %d\n", gpio_num, ret);
++			return ret;
++		}
++
++		priv->irq = gpio_to_irq(gpio_num);
++		if (priv->irq < 0) {
++			dev_err(&pdev->dev, "Failed to get IRQ number for GPIO %d\n", gpio_num);
++			return priv->irq;
++		}
++
++		ret = devm_request_irq(&pdev->dev, priv->irq, kratos_gpio_isr,
++				       IRQF_TRIGGER_RISING, "IRQ ARM#3", priv);
++		if (ret) {
++			dev_err(&pdev->dev, "Failed to request IRQ: %d\n", ret);
++			return ret;
++		}
++	} else {
++		dev_info(&pdev->dev, "No interrupt-gpios defined in DT\n");
++	}
++
+ 	dev_info(&pdev->dev, "Probed\n");
+ 	register_reboot_notifier(&poweroff_notifier_block);
+-	
++
+ 	return 0;
+ }
+ 
+@@ -145,3 +184,4 @@ module_exit(kratos_station_exit);
+ MODULE_ALIAS("platform:kratos_station-pm");
+ MODULE_DESCRIPTION("Kratos Station Board Driver");
+ MODULE_LICENSE("GPL");
++
