@@ -1,0 +1,54 @@
+From 4d0fc29a7f7928e3a9ecb771b74d8991ff170b12 Mon Sep 17 00:00:00 2001
+From: deadpoolcode1 <deadpoolcode@gmail.com>
+Date: Fri, 20 Sep 2024 12:41:07 +0300
+Subject: [PATCH] updated to support FPGA load
+
+---
+ arch/arm64/boot/dts/freescale/imx8mp-evk.dts | 31 ++++++++++++--------
+ 1 file changed, 18 insertions(+), 13 deletions(-)
+
+diff --git a/arch/arm64/boot/dts/freescale/imx8mp-evk.dts b/arch/arm64/boot/dts/freescale/imx8mp-evk.dts
+index 7bbf29e0a13e..e30accbfc60e 100644
+--- a/arch/arm64/boot/dts/freescale/imx8mp-evk.dts
++++ b/arch/arm64/boot/dts/freescale/imx8mp-evk.dts
+@@ -271,19 +271,24 @@
+ };
+ 
+ &ecspi2 {
+-	#address-cells = <1>;
+-	#size-cells = <0>;
+-	fsl,spi-num-chipselects = <1>;
+-	pinctrl-names = "default";
+-	pinctrl-0 = <&pinctrl_ecspi2 &pinctrl_ecspi2_cs>;
+-	cs-gpios = <&gpio5 13 GPIO_ACTIVE_LOW>;
+-	status = "okay";
+-
+-	spidev1: spi@0 {
+-		reg = <0>;
+-		compatible = "rohm,dh2228fv";
+-		spi-max-frequency = <500000>;
+-	};
++    #address-cells = <1>;
++    #size-cells = <0>;
++    fsl,spi-num-chipselects = <1>;
++    pinctrl-names = "default";
++    pinctrl-0 = <&pinctrl_ecspi2 &pinctrl_ecspi2_cs>;
++    cs-gpios = <&gpio5 13 GPIO_ACTIVE_LOW>;
++    status = "okay";
++
++    // SPI device representing the FPGA manager
++    fpga-mgr@0 {
++        compatible = "xlnx,fpga-slave-serial";   // Xilinx FPGA slave serial
++        reg = <0>;                              // Chip select 0 for SPI device
++        spi-max-frequency = <50000000>;         // SPI max frequency (adjust as needed)
++        prog_b-gpios = <&gpio3 23 GPIO_ACTIVE_LOW>;   // Program_B GPIO pin
++        init-b-gpios = <&gpio3 21 GPIO_ACTIVE_LOW>;    // Init_B GPIO pin (optional)
++        done-gpios = <&gpio3 22 GPIO_ACTIVE_HIGH>;     // Done GPIO pin
++        spi-cpha;                               // Use SPI CPHA mode (optional, depending on FPGA)
++    };
+ };
+ 
+ &eqos {
+-- 
+2.17.1
+

@@ -1,0 +1,563 @@
+From e04ad72ae02d0600e549a4ee792a370f3cc1edd9 Mon Sep 17 00:00:00 2001
+From: deadpoolcode1 <deadpoolcode@gmail.com>
+Date: Sat, 21 Sep 2024 03:21:45 +0300
+Subject: [PATCH] updated file descriptor
+
+---
+ drivers/fpga/xilinx-spi.c | 472 +++++++++++++++++++++++---------------
+ 1 file changed, 293 insertions(+), 179 deletions(-)
+
+diff --git a/drivers/fpga/xilinx-spi.c b/drivers/fpga/xilinx-spi.c
+index b6bcf1d9233d..3e2e56401a79 100644
+--- a/drivers/fpga/xilinx-spi.c
++++ b/drivers/fpga/xilinx-spi.c
+@@ -19,33 +19,44 @@
+ #include <linux/of.h>
+ #include <linux/spi/spi.h>
+ #include <linux/sizes.h>
++#include <linux/sysfs.h>
++#include <linux/kobject.h>
++#include <linux/uaccess.h>
++
++/* Forward declaration of the store function */
++static ssize_t load_bitstream_store(struct device *dev,
++                                    struct device_attribute *attr,
++                                    const char *buf, size_t count);
++
++/* Define the device attribute */
++static DEVICE_ATTR(load_bitstream, S_IWUSR, NULL, load_bitstream_store);
+ 
+ struct xilinx_spi_conf {
+-	struct spi_device *spi;
+-	struct gpio_desc *prog_b;
+-	struct gpio_desc *init_b;
+-	struct gpio_desc *done;
++    struct spi_device *spi;
++    struct gpio_desc *prog_b;
++    struct gpio_desc *init_b;
++    struct gpio_desc *done;
++    struct fpga_manager *mgr; // Added to store the FPGA manager
+ };
+ 
++/* Function to get the DONE GPIO value */
+ static int get_done_gpio(struct fpga_manager *mgr)
+ {
+-	struct xilinx_spi_conf *conf = mgr->priv;
+-	int ret;
+-
+-	ret = gpiod_get_value(conf->done);
++    struct xilinx_spi_conf *conf = mgr->priv;
++    int ret;
+ 
+-	if (ret < 0)
+-		dev_err(&mgr->dev, "Error reading DONE (%d)\n", ret);
++    ret = gpiod_get_value(conf->done);
+ 
+-	return ret;
++    return ret;
+ }
+ 
++/* Function to get the FPGA manager state */
+ static enum fpga_mgr_states xilinx_spi_state(struct fpga_manager *mgr)
+ {
+-	if (!get_done_gpio(mgr))
+-		return FPGA_MGR_STATE_RESET;
++    if (!get_done_gpio(mgr))
++        return FPGA_MGR_STATE_RESET;
+ 
+-	return FPGA_MGR_STATE_UNKNOWN;
++    return FPGA_MGR_STATE_UNKNOWN;
+ }
+ 
+ /**
+@@ -61,215 +72,317 @@ static enum fpga_mgr_states xilinx_spi_state(struct fpga_manager *mgr)
+  * then always return 0.
+  */
+ static int wait_for_init_b(struct fpga_manager *mgr, int value,
+-			   unsigned long alt_udelay)
++                           unsigned long alt_udelay)
+ {
+-	struct xilinx_spi_conf *conf = mgr->priv;
+-	unsigned long timeout = jiffies + msecs_to_jiffies(1000);
++    struct xilinx_spi_conf *conf = mgr->priv;
++    unsigned long timeout = jiffies + msecs_to_jiffies(1000);
++    int ret;
+ 
+-	if (conf->init_b) {
+-		while (time_before(jiffies, timeout)) {
+-			int ret = gpiod_get_value(conf->init_b);
++    if (conf->init_b) {
++        while (time_before(jiffies, timeout)) {
++            ret = gpiod_get_value(conf->init_b);
+ 
+-			if (ret == value)
+-				return 0;
++            if (ret == value)
++                return 0;
+ 
+-			if (ret < 0) {
+-				dev_err(&mgr->dev, "Error reading INIT_B (%d)\n", ret);
+-				return ret;
+-			}
++            if (ret < 0) {
++                return ret;
++            }
+ 
+-			usleep_range(100, 400);
+-		}
++            usleep_range(100, 400);
++        }
+ 
+-		dev_err(&mgr->dev, "Timeout waiting for INIT_B to %s\n",
+-			value ? "assert" : "deassert");
+-		return -ETIMEDOUT;
+-	}
++        return -ETIMEDOUT;
++    }
+ 
+-	udelay(alt_udelay);
++    udelay(alt_udelay);
+ 
+-	return 0;
++    return 0;
+ }
+ 
++/* Function to initialize the write process */
+ static int xilinx_spi_write_init(struct fpga_manager *mgr,
+-				 struct fpga_image_info *info,
+-				 const char *buf, size_t count)
++                                 struct fpga_image_info *info,
++                                 const char *buf, size_t count)
+ {
+-	struct xilinx_spi_conf *conf = mgr->priv;
+-	int err;
+-
+-	if (info->flags & FPGA_MGR_PARTIAL_RECONFIG) {
+-		dev_err(&mgr->dev, "Partial reconfiguration not supported\n");
+-		return -EINVAL;
+-	}
+-
+-	gpiod_set_value(conf->prog_b, 1);
++    struct xilinx_spi_conf *conf = mgr->priv;
++    int err;
++
++    if (info->flags & FPGA_MGR_PARTIAL_RECONFIG) {
++        return -EINVAL;
++    }
++
++    gpiod_set_value(conf->prog_b, 1);
++    dev_info(&mgr->dev, "Set PROG_B high\n");
++
++    err = wait_for_init_b(mgr, 1, 1); /* min is 500 ns */
++    if (err) {
++        dev_err(&mgr->dev, "wait_for_init_b failed: %d\n", err);
++        gpiod_set_value(conf->prog_b, 0);
++        return err;
++    }
++
++    gpiod_set_value(conf->prog_b, 0);
++    dev_info(&mgr->dev, "Set PROG_B low\n");
++
++    err = wait_for_init_b(mgr, 0, 0);
++    if (err) {
++        dev_err(&mgr->dev, "wait_for_init_b failed: %d\n", err);
++        return err;
++    }
++
++    if (get_done_gpio(mgr)) {
++        dev_err(&mgr->dev, "DONE signal not asserted\n");
++        return -EIO;
++    }
++
++    /* Program latency */
++    usleep_range(7500, 7600);
++    dev_info(&mgr->dev, "Write initialization completed\n");
++    return 0;
++}
+ 
+-	err = wait_for_init_b(mgr, 1, 1); /* min is 500 ns */
+-	if (err) {
+-		gpiod_set_value(conf->prog_b, 0);
+-		return err;
+-	}
++/* Function to write the bitstream */
++static int xilinx_spi_write(struct fpga_manager *mgr, const char *buf,
++                            size_t count)
++{
++    struct xilinx_spi_conf *conf = mgr->priv;
++    const char *fw_data = buf;
++    const char *fw_data_end = fw_data + count;
+ 
+-	gpiod_set_value(conf->prog_b, 0);
++    dev_info(&mgr->dev, "Starting bitstream write\n");
+ 
+-	err = wait_for_init_b(mgr, 0, 0);
+-	if (err)
+-		return err;
++    while (fw_data < fw_data_end) {
++        size_t remaining, stride;
++        int ret;
+ 
+-	if (get_done_gpio(mgr)) {
+-		dev_err(&mgr->dev, "Unexpected DONE pin state...\n");
+-		return -EIO;
+-	}
++        remaining = fw_data_end - fw_data;
++        stride = min_t(size_t, remaining, SZ_4K);
+ 
+-	/* program latency */
+-	usleep_range(7500, 7600);
+-	return 0;
+-}
++        ret = spi_write(conf->spi, fw_data, stride);
++        if (ret) {
++            dev_err(&mgr->dev, "spi_write failed: %d\n", ret);
++            return ret;
++        }
++        fw_data += stride;
++    }
+ 
+-static int xilinx_spi_write(struct fpga_manager *mgr, const char *buf,
+-			    size_t count)
+-{
+-	struct xilinx_spi_conf *conf = mgr->priv;
+-	const char *fw_data = buf;
+-	const char *fw_data_end = fw_data + count;
+-
+-	while (fw_data < fw_data_end) {
+-		size_t remaining, stride;
+-		int ret;
+-
+-		remaining = fw_data_end - fw_data;
+-		stride = min_t(size_t, remaining, SZ_4K);
+-
+-		ret = spi_write(conf->spi, fw_data, stride);
+-		if (ret) {
+-			dev_err(&mgr->dev, "SPI error in firmware write: %d\n",
+-				ret);
+-			return ret;
+-		}
+-		fw_data += stride;
+-	}
+-
+-	return 0;
++    dev_info(&mgr->dev, "Bitstream write completed\n");
++    return 0;
+ }
+ 
++/* Function to apply CCLK cycles */
+ static int xilinx_spi_apply_cclk_cycles(struct xilinx_spi_conf *conf)
+ {
+-	struct spi_device *spi = conf->spi;
+-	const u8 din_data[1] = { 0xff };
+-	int ret;
++    const u8 din_data[1] = { 0xff };
++    int ret;
+ 
+-	ret = spi_write(conf->spi, din_data, sizeof(din_data));
+-	if (ret)
+-		dev_err(&spi->dev, "applying CCLK cycles failed: %d\n", ret);
++    ret = spi_write(conf->spi, din_data, sizeof(din_data));
++    if (ret)
++        dev_err(&conf->spi->dev, "CCLK cycles application failed: %d\n", ret);
++    else
++        dev_info(&conf->spi->dev, "Applied CCLK cycles successfully\n");
+ 
+-	return ret;
++    return ret;
+ }
+ 
++/* Function to complete the write process */
+ static int xilinx_spi_write_complete(struct fpga_manager *mgr,
+-				     struct fpga_image_info *info)
++                                     struct fpga_image_info *info)
+ {
+-	struct xilinx_spi_conf *conf = mgr->priv;
+-	unsigned long timeout = jiffies + usecs_to_jiffies(info->config_complete_timeout_us);
+-	bool expired = false;
+-	int done;
+-	int ret;
+-
+-	/*
+-	 * This loop is carefully written such that if the driver is
+-	 * scheduled out for more than 'timeout', we still check for DONE
+-	 * before giving up and we apply 8 extra CCLK cycles in all cases.
+-	 */
+-	while (!expired) {
+-		expired = time_after(jiffies, timeout);
+-
+-		done = get_done_gpio(mgr);
+-		if (done < 0)
+-			return done;
+-
+-		ret = xilinx_spi_apply_cclk_cycles(conf);
+-		if (ret)
+-			return ret;
+-
+-		if (done)
+-			return 0;
+-	}
+-
+-	if (conf->init_b) {
+-		ret = gpiod_get_value(conf->init_b);
+-
+-		if (ret < 0) {
+-			dev_err(&mgr->dev, "Error reading INIT_B (%d)\n", ret);
+-			return ret;
+-		}
+-
+-		dev_err(&mgr->dev,
+-			ret ? "CRC error or invalid device\n"
+-			: "Missing sync word or incomplete bitstream\n");
+-	} else {
+-		dev_err(&mgr->dev, "Timeout after config data transfer\n");
+-	}
+-
+-	return -ETIMEDOUT;
++    struct xilinx_spi_conf *conf = mgr->priv;
++    unsigned long timeout = jiffies + usecs_to_jiffies(info->config_complete_timeout_us);
++    bool expired = false;
++    int done;
++    int ret;
++
++    dev_info(&mgr->dev, "Completing write process\n");
++
++    /*
++     * This loop is carefully written such that if the driver is
++     * scheduled out for more than 'timeout', we still check for DONE
++     * before giving up and we apply 8 extra CCLK cycles in all cases.
++     */
++    while (!expired) {
++        expired = time_after(jiffies, timeout);
++
++        done = get_done_gpio(mgr);
++        if (done < 0) {
++            dev_err(&mgr->dev, "Error reading DONE GPIO: %d\n", done);
++            return done;
++        }
++
++        ret = xilinx_spi_apply_cclk_cycles(conf);
++        if (ret) {
++            dev_err(&mgr->dev, "CCLK cycles application failed: %d\n", ret);
++            return ret;
++        }
++
++        if (done) {
++            dev_info(&mgr->dev, "DONE signal asserted\n");
++            return 0;
++        }
++    }
++
++    if (conf->init_b) {
++        ret = gpiod_get_value(conf->init_b);
++
++        if (ret < 0) {
++            dev_err(&mgr->dev, "Error reading INIT_B GPIO: %d\n", ret);
++            return ret;
++        }
++
++    } else {
++        // Optional handling if INIT_B is not present
++    }
++
++    dev_err(&mgr->dev, "Write complete timed out\n");
++    return -ETIMEDOUT;
+ }
+ 
++/* FPGA Manager Operations Structure */
+ static const struct fpga_manager_ops xilinx_spi_ops = {
+-	.state = xilinx_spi_state,
+-	.write_init = xilinx_spi_write_init,
+-	.write = xilinx_spi_write,
+-	.write_complete = xilinx_spi_write_complete,
++    .state = xilinx_spi_state,
++    .write_init = xilinx_spi_write_init,
++    .write = xilinx_spi_write,
++    .write_complete = xilinx_spi_write_complete,
+ };
+ 
++/* Custom sysfs store function to load the bitstream */
++static ssize_t load_bitstream_store(struct device *dev,
++                                    struct device_attribute *attr,
++                                    const char *buf, size_t count)
++{
++    struct xilinx_spi_conf *conf = dev_get_drvdata(dev);
++    struct fpga_manager *mgr = conf->mgr;
++    struct fpga_image_info info = {0};
++    int ret;
++
++    if (!mgr) {
++        dev_err(dev, "FPGA manager not initialized\n");
++        return -EINVAL;
++    }
++
++    dev_info(dev, "Loading FPGA bitstream\n");
++
++    /* Initialize the write process */
++    ret = mgr->mops->write_init(mgr, &info, buf, count);
++    if (ret) {
++        dev_err(dev, "write_init failed: %d\n", ret);
++        return ret;
++    }
++
++    /* Write the bitstream */
++    ret = mgr->mops->write(mgr, buf, count);
++    if (ret) {
++        dev_err(dev, "write failed: %d\n", ret);
++        return ret;
++    }
++
++    /* Complete the write process */
++    ret = mgr->mops->write_complete(mgr, &info);
++    if (ret) {
++        dev_err(dev, "write_complete failed: %d\n", ret);
++        return ret;
++    }
++
++    dev_info(dev, "FPGA bitstream loaded successfully\n");
++    return count;
++}
++
++/* Probe Function */
+ static int xilinx_spi_probe(struct spi_device *spi)
+ {
+-	struct xilinx_spi_conf *conf;
+-	struct fpga_manager *mgr;
+-
+-	conf = devm_kzalloc(&spi->dev, sizeof(*conf), GFP_KERNEL);
+-	if (!conf)
+-		return -ENOMEM;
+-
+-	conf->spi = spi;
+-
+-	/* PROGRAM_B is active low */
+-	conf->prog_b = devm_gpiod_get(&spi->dev, "prog_b", GPIOD_OUT_LOW);
+-	if (IS_ERR(conf->prog_b))
+-		return dev_err_probe(&spi->dev, PTR_ERR(conf->prog_b),
+-				     "Failed to get PROGRAM_B gpio\n");
+-
+-	conf->init_b = devm_gpiod_get_optional(&spi->dev, "init-b", GPIOD_IN);
+-	if (IS_ERR(conf->init_b))
+-		return dev_err_probe(&spi->dev, PTR_ERR(conf->init_b),
+-				     "Failed to get INIT_B gpio\n");
+-
+-	conf->done = devm_gpiod_get(&spi->dev, "done", GPIOD_IN);
+-	if (IS_ERR(conf->done))
+-		return dev_err_probe(&spi->dev, PTR_ERR(conf->done),
+-				     "Failed to get DONE gpio\n");
+-
+-	mgr = devm_fpga_mgr_create(&spi->dev,
+-				   "Xilinx Slave Serial FPGA Manager",
+-				   &xilinx_spi_ops, conf);
+-	if (!mgr)
+-		return -ENOMEM;
+-
+-	return devm_fpga_mgr_register(&spi->dev, mgr);
++    struct xilinx_spi_conf *conf;
++    struct fpga_manager *mgr;
++    int ret;
++
++    dev_info(&spi->dev, "Probing Xilinx SPI FPGA Manager\n");
++
++    conf = devm_kzalloc(&spi->dev, sizeof(*conf), GFP_KERNEL);
++    if (!conf)
++        return -ENOMEM;
++
++    conf->spi = spi;
++
++    /* PROGRAM_B is active low */
++    conf->prog_b = devm_gpiod_get(&spi->dev, "prog_b", GPIOD_OUT_LOW);
++    if (IS_ERR(conf->prog_b))
++        return PTR_ERR(conf->prog_b);
++
++    conf->init_b = devm_gpiod_get_optional(&spi->dev, "init-b", GPIOD_IN);
++    if (IS_ERR(conf->init_b))
++        return PTR_ERR(conf->init_b);
++
++    conf->done = devm_gpiod_get(&spi->dev, "done", GPIOD_IN);
++    if (IS_ERR(conf->done))
++        return PTR_ERR(conf->done);
++
++    mgr = devm_fpga_mgr_create(&spi->dev,
++                               "Xilinx Slave Serial FPGA Manager",
++                               &xilinx_spi_ops,
++                               conf);
++    if (IS_ERR(mgr)) {
++        dev_err(&spi->dev, "Failed to create FPGA manager\n");
++        return PTR_ERR(mgr);
++    }
++
++    conf->mgr = mgr; // Store the mgr pointer
++
++    dev_set_drvdata(&spi->dev, conf); // Set driver data
++
++    ret = devm_fpga_mgr_register(&spi->dev, mgr);
++    if (ret) {
++        dev_err(&spi->dev, "Failed to register FPGA manager\n");
++        return ret;
++    }
++
++    /* Create the custom sysfs attribute */
++    ret = device_create_file(&spi->dev, &dev_attr_load_bitstream);
++    if (ret) {
++        dev_err(&spi->dev, "Failed to create load_bitstream attribute\n");
++        return ret;
++    }
++
++    dev_info(&spi->dev, "FPGA Manager and load_bitstream attribute initialized\n");
++    return 0;
++}
++
++/* Remove Function to clean up the custom sysfs attribute */
++static int xilinx_spi_remove(struct spi_device *spi)
++{
++    struct xilinx_spi_conf *conf = dev_get_drvdata(&spi->dev);
++
++    device_remove_file(&spi->dev, &dev_attr_load_bitstream);
++    dev_info(&spi->dev, "Removed load_bitstream attribute\n");
++
++    return 0;
+ }
+ 
+ #ifdef CONFIG_OF
+ static const struct of_device_id xlnx_spi_of_match[] = {
+-	{ .compatible = "xlnx,fpga-slave-serial", },
+-	{}
++    { .compatible = "xlnx,fpga-slave-serial", },
++    {}
+ };
+ MODULE_DEVICE_TABLE(of, xlnx_spi_of_match);
+ #endif
+ 
++/* Define an spi_device_id table to match devices by name */
++static const struct spi_device_id xlnx_spi_ids[] = {
++    { "xlnx-slave-spi", 0 },
++    { "fpga-slave-serial", 1 },
++    { "xlnx,fpga-slave-serial", 2 },
++    {}
++};
++
+ static struct spi_driver xilinx_slave_spi_driver = {
+-	.driver = {
+-		.name = "xlnx-slave-spi",
+-		.of_match_table = of_match_ptr(xlnx_spi_of_match),
+-	},
+-	.probe = xilinx_spi_probe,
++    .driver = {
++        .name = "xlnx-slave-spi",
++        .of_match_table = of_match_ptr(xlnx_spi_of_match),
++    },
++    .probe = xilinx_spi_probe,
++    .remove = xilinx_spi_remove, // Added remove function
++    .id_table = xlnx_spi_ids,
+ };
+ 
+ module_spi_driver(xilinx_slave_spi_driver)
+@@ -277,3 +390,4 @@ module_spi_driver(xilinx_slave_spi_driver)
+ MODULE_LICENSE("GPL v2");
+ MODULE_AUTHOR("Anatolij Gustschin <agust@denx.de>");
+ MODULE_DESCRIPTION("Load Xilinx FPGA firmware over SPI");
++
+-- 
+2.17.1
+

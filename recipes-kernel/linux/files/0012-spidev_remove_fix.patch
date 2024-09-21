@@ -1,0 +1,24 @@
+From ceddbf4430e4a1d17bb213d29226af2ec418bd93 Mon Sep 17 00:00:00 2001
+From: deadpoolcode1 <deadpoolcode@gmail.com>
+Date: Fri, 20 Sep 2024 12:57:08 +0300
+Subject: [PATCH] fix compilation issue when removing spidev
+
+---
+ arch/arm64/boot/dts/freescale/imx8mp-evk-ecspi-slave.dts | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/arch/arm64/boot/dts/freescale/imx8mp-evk-ecspi-slave.dts b/arch/arm64/boot/dts/freescale/imx8mp-evk-ecspi-slave.dts
+index 800cdbafc6f2..642dce49e2c1 100644
+--- a/arch/arm64/boot/dts/freescale/imx8mp-evk-ecspi-slave.dts
++++ b/arch/arm64/boot/dts/freescale/imx8mp-evk-ecspi-slave.dts
+@@ -4,7 +4,6 @@
+ 
+ #include "imx8mp-evk.dts"
+ 
+-/delete-node/&spidev1;
+ 
+ &ecspi2 {
+ 	#address-cells = <0>;
+-- 
+2.17.1
+
