@@ -14,6 +14,8 @@ SRC_URI += "file://0001-removed-promisc-check-on-eth1.patch \
 	    file://0011-fpga_load_dts_pins.patch \
             file://0012-spidev_remove_fix.patch \
 	    file://0013-fpga_fix.patch \
+	    file://0014-fpga_spi_speed_limit.patch \
+	    file://0015-spi_mode_0.patch \
             file://defconfig.cfg"
 
 do_configure:append() {
